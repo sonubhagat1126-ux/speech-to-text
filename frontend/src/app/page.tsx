@@ -1,76 +1,52 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import RecorderPanel from '@/components/RecorderPanel';
 import TranscriptPanel from '@/components/TranscriptPanel';
 
 export default function Home() {
-  const [isRecording, setIsRecording] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [duration, setDuration] = useState(0);
+  const {
+    isRecording,
+    isPaused,
+    duration,
+    audioBlob,
+    startRecording,
+    stopRecording,
+    togglePause,
+  } = useAudioRecorder();
+
   const [transcript, setTranscript] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Clear timer on component unmount
+  // Revoke previous audio URL to avoid memory leaks
   useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
+    if (audioBlob) {
+      const url = URL.createObjectURL(audioBlob);
+      setAudioUrl(url);
+      
+      // Simulate transcription after recording stops
+      setIsTranscribing(true);
+      const timer = setTimeout(() => {
+        setIsTranscribing(false);
+        setTranscript(
+          "This is a simulated transcript from your microphone recording. On Day 6, we will connect this page to the backend to perform real speech recognition on your uploaded audio."
+        );
+      }, 1500);
 
-  const handleStartRecording = () => {
-    setIsRecording(true);
-    setIsPaused(false);
-    setDuration(0);
-    setTranscript('');
-    setIsTranscribing(false);
-
-    // Start timer counter
-    timerRef.current = setInterval(() => {
-      setDuration((prev) => prev + 1);
-    }, 1000);
-  };
-
-  const handleStopRecording = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
-    setIsRecording(false);
-    setIsPaused(false);
-    setIsTranscribing(true);
-
-    // Simulate server side transcription delay
-    setTimeout(() => {
-      setIsTranscribing(false);
-      setTranscript(
-        "Hello! This is a demo speech-to-text transcription generated locally. The recording panel, timer, and visualizer are functioning perfectly. In the upcoming days, we will connect the live MediaRecorder stream directly to our Python Flask backend to transcribe your actual spoken words in real-time."
-      );
-    }, 1500);
-  };
-
-  const handleTogglePause = () => {
-    if (isPaused) {
-      // Resume timer
-      timerRef.current = setInterval(() => {
-        setDuration((prev) => prev + 1);
-      }, 1000);
-      setIsPaused(false);
+      return () => {
+        URL.revokeObjectURL(url);
+        clearTimeout(timer);
+      };
     } else {
-      // Pause timer
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      setIsPaused(true);
+      setAudioUrl(null);
+      setTranscript('');
     }
-  };
+  }, [audioBlob]);
 
   const handleSaveTranscript = () => {
-    alert('Transcript saved successfully! (Note: Supabase persistence will be integrated on Day 9).');
+    alert('Transcript saved locally (DB persistence will be configured on Day 9).');
   };
 
   return (
@@ -87,15 +63,25 @@ export default function Home() {
 
       {/* Grid workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-5 flex flex-col gap-4">
           <RecorderPanel
             isRecording={isRecording}
             isPaused={isPaused}
             duration={duration}
-            onStart={handleStartRecording}
-            onStop={handleStopRecording}
-            onTogglePause={handleTogglePause}
+            onStart={startRecording}
+            onStop={stopRecording}
+            onTogglePause={togglePause}
           />
+
+          {/* Local Audio Playback Preview */}
+          {audioUrl && (
+            <div className="p-4 bg-white border border-zinc-150 rounded-2xl shadow-sm dark:bg-zinc-900 dark:border-zinc-800 flex flex-col gap-2">
+              <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                Playback Capture
+              </span>
+              <audio src={audioUrl} controls className="w-full h-8" />
+            </div>
+          )}
         </div>
         <div className="lg:col-span-7">
           <TranscriptPanel
