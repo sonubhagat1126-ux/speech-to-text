@@ -20,24 +20,44 @@ export default function Home() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
-  // Revoke previous audio URL to avoid memory leaks
+  // Send captured audio blob to Flask backend for transcription
   useEffect(() => {
     if (audioBlob) {
       const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
       
-      // Simulate transcription after recording stops
-      setIsTranscribing(true);
-      const timer = setTimeout(() => {
-        setIsTranscribing(false);
-        setTranscript(
-          "This is a simulated transcript from your microphone recording. On Day 6, we will connect this page to the backend to perform real speech recognition on your uploaded audio."
-        );
-      }, 1500);
+      const uploadAndTranscribe = async () => {
+        setIsTranscribing(true);
+        setTranscript('');
+        try {
+          const formData = new FormData();
+          const file = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
+          formData.append('file', file);
+
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+          const response = await fetch(`${apiUrl}/api/transcribe`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Server returned error status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          setTranscript(data.transcript || '[No transcript returned by the server]');
+        } catch (err) {
+          console.error('Failed to transcribe audio:', err);
+          setTranscript('[Failed to transcribe audio. Please make sure the Flask backend server is running on port 5000.]');
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      uploadAndTranscribe();
 
       return () => {
         URL.revokeObjectURL(url);
-        clearTimeout(timer);
       };
     } else {
       setAudioUrl(null);
