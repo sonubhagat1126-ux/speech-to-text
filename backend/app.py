@@ -1,10 +1,17 @@
 import os
+import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+from pydub import AudioSegment
+from stt_service import transcribe_audio
 
 # Load environment variables
 load_dotenv()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -19,6 +26,26 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Limit uploads to 16MB
 # Ensure the upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+def process_audio_file(file_path: str) -> str:
+    """
+    Converts incoming audio to a standard 16kHz mono WAV format using pydub.
+    Falls back to the original file if conversion fails (e.g. if ffmpeg is missing).
+    """
+    try:
+        base_path, _ = os.path.splitext(file_path)
+        target_path = f"{base_path}_processed.wav"
+        
+        logger.info(f"Converting audio file {file_path} to 16kHz mono WAV...")
+        sound = AudioSegment.from_file(file_path)
+        sound = sound.set_frame_rate(16000).set_channels(1)
+        sound.export(target_path, format="wav")
+        
+        logger.info(f"Successfully processed audio. Target path: {target_path}")
+        return target_path
+    except Exception as e:
+        logger.warning(f"Audio processing failed (pydub/ffmpeg error): {str(e)}. Falling back to raw file.")
+        return file_path
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Simple API health check endpoint."""
@@ -29,7 +56,7 @@ def health_check():
 
 @app.route('/api/transcribe', methods=['POST'])
 def upload_audio():
-    """Accepts multipart form audio files and stores them temporarily."""
+    """Accepts multipart form audio files, processes them, and transcribes them."""
     if 'file' not in request.files:
         return jsonify({'error': 'No audio file found in the request'}), 400
 
@@ -42,19 +69,33 @@ def upload_audio():
         filename = audio_file.filename
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         
-        # Save file to temporary server folder
+        # Save raw file to temporary server folder
+        logger.info(f"Saving raw upload to {file_path}")
         audio_file.save(file_path)
+
+        # Day 7: Preprocess audio (convert format)
+        processed_path = process_audio_file(file_path)
+
+        # Day 5 & 6: Transcribe audio
+        transcript = transcribe_audio(processed_path)
+
+        # Clean up temporary files to save server space (except the uploaded raw logs)
+        if processed_path != file_path and os.path.exists(processed_path):
+            try:
+                os.remove(processed_path)
+            except Exception as cleanup_err:
+                logger.error(f"Failed to clean up processed file: {cleanup_err}")
 
         return jsonify({
             'status': 'success',
-            'message': 'Audio file successfully uploaded and stored.',
+            'transcript': transcript,
             'filename': filename,
             'path': file_path
         }), 200
 
     except Exception as e:
-        app.logger.error(f"Error saving uploaded file: {str(e)}")
-        return jsonify({'error': f"Failed to save file: {str(e)}"}), 500
+        logger.error(f"Error saving/processing uploaded file: {str(e)}")
+        return jsonify({'error': f"Failed to save/process file: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
