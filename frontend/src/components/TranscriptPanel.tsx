@@ -124,7 +124,7 @@ export default function TranscriptPanel({
       </div>
 
       {/* Transcript Text Box */}
-      <div className="flex-1 overflow-y-auto mb-6 p-4 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-900 min-h-[200px] text-sm text-zinc-700 dark:text-zinc-350 leading-relaxed font-sans select-text">
+      <div className="flex-1 overflow-y-auto mb-6 p-4 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-900 min-h-[200px] text-sm text-zinc-800 dark:text-white leading-relaxed font-sans select-text">
         {transcript ? (
           <p className="whitespace-pre-wrap">{transcript}</p>
         ) : isTranscribing ? (
