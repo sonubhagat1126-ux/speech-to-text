@@ -1,36 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface TranscriptRecord {
   id: string;
-  date: string;
+  created_at: string;
   text: string;
   duration: number; // in seconds
 }
 
 export default function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [records, setRecords] = useState<TranscriptRecord[]>([
-    {
-      id: '1',
-      date: '2026-05-21',
-      duration: 105,
-      text: 'EchoScribe scaffolding is officially completed. The frontend is built on Next.js with Tailwind CSS, and the backend is configured using Flask and a Python virtual environment. Day 1 milestones were successfully committed.',
-    },
-    {
-      id: '2',
-      date: '2026-05-20',
-      duration: 48,
-      text: 'This is a test transcript summarizing the wireframe specifications of our application dashboard. The layout consists of a navigation bar, a recording visualizer timer panel, and a dedicated transcription log output.',
-    },
-    {
-      id: '3',
-      date: '2026-05-19',
-      duration: 15,
-      text: 'Hello world, testing the microphone audio levels and sensitivity metrics. Everything is operational.',
-    },
-  ]);
+  const [records, setRecords] = useState<TranscriptRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch saved records from the database
+  const fetchRecords = async (query: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const endpoint = query 
+        ? `${apiUrl}/api/transcripts?q=${encodeURIComponent(query)}` 
+        : `${apiUrl}/api/transcripts`;
+
+      const response = await fetch(endpoint);
+      if (!response.ok) {
+        throw new Error('Failed to fetch data from the server');
+      }
+
+      const data = await response.json();
+      setRecords(data);
+    } catch (err) {
+      console.error('Failed to load transcripts:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Re-fetch records whenever the search input changes
+  useEffect(() => {
+    fetchRecords(searchQuery);
+  }, [searchQuery]);
 
   // Format seconds into HH:MM:SS
   const formatTime = (totalSeconds: number) => {
@@ -40,20 +49,45 @@ export default function HistoryPage() {
     return `${hrs}:${mins}:${secs}`;
   };
 
-  // Filter records based on search query
-  const filteredRecords = records.filter(record => 
-    record.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    record.date.includes(searchQuery)
-  );
+  // Format SQLite timestamp into a cleaner date
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString.replace(' ', 'T')); // Handle SQLite format safely
+      return date.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateString;
+    }
+  };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this transcript?')) {
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this transcript record?')) return;
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/transcripts/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete the transcript record.');
+      }
+
+      // Locally filter out the deleted record
       setRecords(prev => prev.filter(r => r.id !== id));
+    } catch (err) {
+      console.error('Failed to delete transcript:', err);
+      alert('Failed to delete transcript. Please check backend connection.');
     }
   };
 
   const handleViewDetails = (record: TranscriptRecord) => {
-    alert(`[Date: ${record.date} | Duration: ${formatTime(record.duration)}]\n\n${record.text}`);
+    alert(`[Date: ${formatDate(record.created_at)} | Duration: ${formatTime(record.duration)}]\n\n${record.text}`);
   };
 
   return (
@@ -86,7 +120,15 @@ export default function HistoryPage() {
 
       {/* Archive Grid/List */}
       <div className="bg-white border border-zinc-150 rounded-2xl shadow-sm overflow-hidden dark:bg-zinc-900 dark:border-zinc-800">
-        {filteredRecords.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center p-12 text-zinc-400 gap-3">
+            <svg className="animate-spin h-6 w-6 text-zinc-550" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <span>Loading transcripts...</span>
+          </div>
+        ) : records.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-sm text-zinc-500 dark:text-zinc-400">
               <thead className="bg-zinc-50 text-xs font-semibold uppercase text-zinc-700 dark:bg-zinc-850 dark:text-zinc-300">
@@ -98,10 +140,10 @@ export default function HistoryPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850 border-t border-zinc-100 dark:border-zinc-850 font-sans">
-                {filteredRecords.map((record) => (
+                {records.map((record) => (
                   <tr key={record.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-850/30 transition-colors">
                     <td className="px-6 py-4 font-medium text-zinc-900 dark:text-white whitespace-nowrap">
-                      {record.date}
+                      {formatDate(record.created_at)}
                     </td>
                     <td className="px-6 py-4 font-mono text-zinc-550 dark:text-zinc-350">
                       {formatTime(record.duration)}
@@ -119,7 +161,7 @@ export default function HistoryPage() {
                         </button>
                         <button
                           onClick={() => handleDelete(record.id)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-650 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20 transition-colors"
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-650 hover:bg-red-550 dark:text-red-400 dark:hover:bg-red-950/20 transition-colors"
                         >
                           Delete
                         </button>
@@ -135,7 +177,7 @@ export default function HistoryPage() {
             <svg className="h-10 w-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <span className="text-sm">No archive matching your search criteria.</span>
+            <span className="text-sm">No saved transcripts found in the database.</span>
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from pydub import AudioSegment
 from stt_service import transcribe_audio
+from database import init_db, save_transcript, get_all_transcripts, delete_transcript
 
 # Load environment variables
 load_dotenv()
@@ -25,6 +26,9 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Limit uploads to 16MB
 
 # Ensure the upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Initialize database schema on startup
+init_db()
 
 def process_audio_file(file_path: str) -> str:
     """
@@ -96,6 +100,37 @@ def upload_audio():
     except Exception as e:
         logger.error(f"Error saving/processing uploaded file: {str(e)}")
         return jsonify({'error': f"Failed to save/process file: {str(e)}"}), 500
+
+@app.route('/api/transcripts', methods=['GET'])
+def list_transcripts():
+    """Retrieves all saved transcripts, with optional text query filtering."""
+    search_query = request.args.get('q', None)
+    records = get_all_transcripts(search_query)
+    return jsonify(records), 200
+
+@app.route('/api/transcripts', methods=['POST'])
+def create_transcript_record():
+    """Saves a new transcript record to the database."""
+    data = request.get_json() or {}
+    text = data.get('text')
+    duration = data.get('duration')
+    filename = data.get('filename', '')
+
+    if not text or duration is None:
+        return jsonify({'error': 'Missing text or duration parameters'}), 400
+
+    record = save_transcript(text, int(duration), filename)
+    if record:
+        return jsonify(record), 201
+    return jsonify({'error': 'Failed to save transcript to database'}), 500
+
+@app.route('/api/transcripts/<int:record_id>', methods=['DELETE'])
+def remove_transcript_record(record_id):
+    """Deletes a transcript record from the database by its ID."""
+    success = delete_transcript(record_id)
+    if success:
+        return jsonify({'message': f'Transcript record {record_id} successfully deleted.'}), 200
+    return jsonify({'error': f'Failed to delete record {record_id} or not found.'}), 404
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

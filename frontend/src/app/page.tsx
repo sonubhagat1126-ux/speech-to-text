@@ -65,8 +65,36 @@ export default function Home() {
     }
   }, [audioBlob]);
 
-  const handleSaveTranscript = () => {
-    alert('Transcript saved locally (DB persistence will be configured on Day 9).');
+  // Saves the transcript to the SQL database on click
+  const handleSaveTranscript = async () => {
+    if (!transcript) return;
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: transcript,
+          duration: duration,
+          filename: 'recording.webm',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Server returned error status during persistence.');
+      }
+
+      alert('Transcript successfully saved to database!');
+      
+      // Reset state for another recording
+      setTranscript('');
+      setAudioUrl(null);
+    } catch (err) {
+      console.error('Failed to save transcript:', err);
+      alert('Could not save transcript. Please check backend connection.');
+    }
   };
 
   return (
