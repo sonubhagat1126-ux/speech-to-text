@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 interface TranscriptRecord {
   id: string;
@@ -10,19 +12,41 @@ interface TranscriptRecord {
 }
 
 export default function HistoryPage() {
+  const { user, loading, getAuthHeaders } = useAuth();
+  const router = useRouter();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [records, setRecords] = useState<TranscriptRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [recordsLoading, setRecordsLoading] = useState(true);
+
+  // Authentication session guard
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
 
   // Fetch saved records from the database
   const fetchRecords = async (query: string) => {
+    if (!user) return;
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       const endpoint = query 
         ? `${apiUrl}/api/transcripts?q=${encodeURIComponent(query)}` 
         : `${apiUrl}/api/transcripts`;
 
-      const response = await fetch(endpoint);
+      const response = await fetch(endpoint, {
+        headers: {
+          ...getAuthHeaders(), // Inject JWT authorization headers
+        }
+      });
+      
+      if (response.status === 401) {
+        // Handle expired session
+        router.push('/login');
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to fetch data from the server');
       }
@@ -32,14 +56,16 @@ export default function HistoryPage() {
     } catch (err) {
       console.error('Failed to load transcripts:', err);
     } finally {
-      setLoading(false);
+      setRecordsLoading(false);
     }
   };
 
-  // Re-fetch records whenever the search input changes
+  // Re-fetch records whenever the search input or user context changes
   useEffect(() => {
-    fetchRecords(searchQuery);
-  }, [searchQuery]);
+    if (user) {
+      fetchRecords(searchQuery);
+    }
+  }, [searchQuery, user]);
 
   // Format seconds into HH:MM:SS
   const formatTime = (totalSeconds: number) => {
@@ -72,6 +98,9 @@ export default function HistoryPage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       const response = await fetch(`${apiUrl}/api/transcripts/${id}`, {
         method: 'DELETE',
+        headers: {
+          ...getAuthHeaders(), // Inject JWT authorization headers
+        }
       });
 
       if (!response.ok) {
@@ -89,6 +118,18 @@ export default function HistoryPage() {
   const handleViewDetails = (record: TranscriptRecord) => {
     alert(`[Date: ${formatDate(record.created_at)} | Duration: ${formatTime(record.duration)}]\n\n${record.text}`);
   };
+
+  if (loading || !user) {
+    return (
+      <div className="flex flex-1 items-center justify-center min-h-[300px] text-zinc-400 dark:text-zinc-500">
+        <svg className="animate-spin h-5 w-5 mr-3 text-zinc-550" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <span>Verifying active session...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -120,7 +161,7 @@ export default function HistoryPage() {
 
       {/* Archive Grid/List */}
       <div className="bg-white border border-zinc-150 rounded-2xl shadow-sm overflow-hidden dark:bg-zinc-900 dark:border-zinc-800">
-        {loading ? (
+        {recordsLoading ? (
           <div className="flex flex-col items-center justify-center p-12 text-zinc-400 gap-3">
             <svg className="animate-spin h-6 w-6 text-zinc-550" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

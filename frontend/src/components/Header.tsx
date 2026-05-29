@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Header() {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
 
   const links = [
     { href: '/', label: 'Record' },
@@ -33,29 +35,53 @@ export default function Header() {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-6">
-          {links.map((link) => {
-            const isActive = pathname === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`text-sm font-medium transition-colors hover:text-zinc-950 dark:hover:text-white ${
-                  isActive
-                    ? 'text-zinc-950 dark:text-white font-semibold'
-                    : 'text-zinc-500 dark:text-zinc-400'
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {user && (
+          <nav className="flex items-center gap-6">
+            {links.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`text-sm font-medium transition-colors hover:text-zinc-950 dark:hover:text-white ${
+                    isActive
+                      ? 'text-zinc-950 dark:text-white font-semibold'
+                      : 'text-zinc-500 dark:text-zinc-400'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         <div className="flex items-center gap-4">
-          <div className="h-8 w-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center dark:bg-zinc-850 dark:border-zinc-700 text-xs font-semibold text-zinc-600 dark:text-zinc-300 select-none">
-            SB
-          </div>
+          {user ? (
+            <div className="flex items-center gap-3">
+              <span className="hidden sm:inline text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                Hi, <span className="font-semibold text-zinc-800 dark:text-zinc-200 uppercase">{user}</span>
+              </span>
+              <div className="h-8 w-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center dark:bg-zinc-800 dark:border-zinc-700 text-xs font-semibold text-zinc-600 dark:text-zinc-300 select-none uppercase">
+                {user.slice(0, 2)}
+              </div>
+              <button
+                onClick={logout}
+                className="text-xs font-medium text-red-500 hover:text-red-600 hover:underline transition-all"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            pathname !== '/login' && (
+              <Link
+                href="/login"
+                className="text-sm font-medium text-zinc-900 bg-zinc-100 hover:bg-zinc-200 px-4 py-2 rounded-xl dark:bg-zinc-800 dark:text-white dark:hover:bg-zinc-750 transition-colors"
+              >
+                Login
+              </Link>
+            )
+          )}
         </div>
       </div>
     </header>
