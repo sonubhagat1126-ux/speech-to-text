@@ -80,6 +80,7 @@ export default function Home() {
   // Saves the transcript to the SQL database under user's profile
   const handleSaveTranscript = async () => {
     if (!transcript) return;
+    console.log('Saving transcript to server:', { transcript, duration });
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       const response = await fetch(`${apiUrl}/api/transcripts`, {
@@ -94,9 +95,12 @@ export default function Home() {
           filename: 'recording.webm',
         }),
       });
-
+      console.log('Server responded with status', response.status);
       if (!response.ok) {
-        throw new Error('Server returned error status during persistence.');
+        const errData = await response.json();
+        console.error('Failed to save transcript:', errData);
+        alert(`Failed to save transcript: ${errData.error || response.statusText}`);
+        return;
       }
 
       alert('Transcript successfully saved to database!');

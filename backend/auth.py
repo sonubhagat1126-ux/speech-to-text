@@ -58,14 +58,15 @@ def generate_auth_token(user_id: int, secret_key: str) -> str:
     return serializer.dumps({'user_id': user_id})
 
 def verify_auth_token(token: str, secret_key: str) -> int:
-    """
-    Verifies the signed token and extracts the user_id.
+    """Verify the signed token and extract the user_id.
     Returns the user_id if valid, or None if expired/corrupted.
     """
+    logger.debug(f"Verifying token: {token}")
     serializer = URLSafeTimedSerializer(secret_key)
     try:
         # Token valid for 24 hours (86400 seconds)
         data = serializer.loads(token, max_age=86400)
+        logger.debug(f"Token valid, payload: {data}")
         return data.get('user_id')
     except SignatureExpired:
         logger.warning("Token verification failed: token has expired.")

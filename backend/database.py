@@ -112,7 +112,7 @@ def save_transcript(text: str, duration: int, filename: str, user_id: int) -> di
         
         return dict(row) if row else {}
     except Exception as e:
-        logger.error(f"Failed to save transcript: {e}")
+        logger.exception(f"Failed to save transcript (user_id={user_id}): {e}")
         return {}
     finally:
         conn.close()

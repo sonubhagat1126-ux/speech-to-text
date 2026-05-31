@@ -35,7 +35,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv('JWT_SECRET', 'super-secret-key-change-in-production')
 
 # Enable CORS for Next.js frontend running locally
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Configuration
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tmp')
@@ -51,18 +51,22 @@ init_db()
 # --- Authentication Helpers ---
 
 def get_current_user_id():
-    """
-    Parses the Authorization Bearer token from headers and verifies it.
+    """Parse the Authorization Bearer token from headers and verify it.
     Returns the user_id if valid, or None if invalid or missing.
     """
     auth_header = request.headers.get('Authorization', None)
+    logger.debug(f"Authorization header received: {auth_header}")
     if not auth_header or not auth_header.startswith('Bearer '):
+        logger.warning('Missing or malformed Authorization header')
         return None
-        
+
     try:
         token = auth_header.split(' ')[1]
-        return verify_auth_token(token, app.secret_key)
+        user_id = verify_auth_token(token, app.secret_key)
+        logger.info(f"Token verification result, user_id: {user_id}")
+        return user_id
     except IndexError:
+        logger.error('Authorization header parsing error')
         return None
 
 # --- Audio Preprocessing ---
@@ -213,8 +217,11 @@ def list_transcripts():
 @app.route('/api/transcripts', methods=['POST'])
 def create_transcript_record():
     """Saves a new transcript record to the database under the current user's profile."""
+    logger.info(f"Headers received on /api/transcripts POST: {dict(request.headers)}")
+    logger.info(f"Request JSON payload: {request.get_json(silent=True)}")
     user_id = get_current_user_id()
     if not user_id:
+        logger.warning('Unauthorized attempt to create transcript')
         return jsonify({'error': 'Unauthorized. Missing or invalid auth session.'}), 401
 
     data = request.get_json() or {}
@@ -223,11 +230,15 @@ def create_transcript_record():
     filename = data.get('filename', '')
 
     if not text or duration is None:
+        logger.warning('Missing text or duration in transcript creation request')
         return jsonify({'error': 'Missing text or duration parameters.'}), 400
 
+    logger.info(f'Attempting to save transcript for user_id {user_id}')
     record = save_transcript(text, int(duration), filename, user_id)
     if record:
+        logger.info(f'Transcript saved with id {record.get("id")}')
         return jsonify(record), 201
+    logger.error('Failed to save transcript to DB')
     return jsonify({'error': 'Failed to save transcript to database.'}), 500
 
 @app.route('/api/transcripts/<int:record_id>', methods=['DELETE'])
