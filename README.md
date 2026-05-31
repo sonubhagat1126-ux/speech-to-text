@@ -1,32 +1,30 @@
-# Speech-to-Text Application (Python Full Stack)
+# EchoScribe - Speech-to-Text Application (Full Stack)
 
-A modern full-stack web application that records audio via the user's microphone, processes the audio stream, and transcribes the speech to readable text using state-of-the-art Speech-to-Text APIs (e.g., DeepInfra or Google Cloud STT).
+EchoScribe is a modern, full-stack web application designed for high-fidelity microphone voice capture, real-time transcription processing, and personal archive management. It utilizes a Next.js frontend styled with a clean glassmorphic aesthetic and a secure Python Flask backend utilizing Whisper Speech-to-Text services and SQL database persistence.
 
 ---
 
-## 🏗️ Architecture & Component Design
+## 🏗️ System Architecture & Workflow
 
 ```mermaid
 graph TD
-    Client[Next.js Client] <-->|Real-time Audio Stream / WebSockets| Server[Flask API Server]
-    Client -->|Upload WebM/WAV| Server
-    Server -->|Audio Preprocessing with pydub| Server
-    Server -->|Audio Bytes| API[Speech-to-Text API Provider]
-    API -->|Transcript JSON| Server
-    Server -->|Persist Transcript| DB[(PostgreSQL / Supabase)]
-    Server -->|JSON Response / Live Stream| Client
+    Client[Next.js Frontend Client] <-->|E2E multipart/form-data| Server[Flask API Server]
+    Server -->|Transcoding pipeline using pydub| Server
+    Server -->|16kHz Mono WAV Bytes| STT[DeepInfra Whisper API]
+    STT -->|JSON Transcripts| Server
+    Server -->|Save Record| DB[(Local SQLite Database)]
+    Server -->|Bearer JWT Session Validation| DB
+    Server -->|Token/JSON Response| Client
 ```
 
 ---
 
-## 🎨 Wireframe Sketches (UI/UX Mockups)
+## 🎨 UI Dashboards (Wireframes)
 
-### 1. Recording & Live Transcript Screen
-This is the primary workspace where users control audio capture and view results as they are transcribed.
-
+### 1. Recording Dashboard (Home)
 ```text
 +-----------------------------------------------------------------------------------+
-|  [🎤 STT App]                Record             History             [User Profile] |
+|  [🎤 EchoScribe]             Record             History              [User Profile] |
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
 |                              --- Voice Recorder ---                               |
@@ -35,84 +33,108 @@ This is the primary workspace where users control audio capture and view results
 |                                     |  🎤   |  <- Click to Record                 |
 |                                     +-------+                                     |
 |                                                                                   |
-|                                  [00:00:00] (Ready)                               |
+|                                  [00:00:15] (Recording)                           |
 |                                                                                   |
 |  +-----------------------------------------------------------------------------+  |
 |  | Live Transcript                                                             |  |
 |  | --------------------------------------------------------------------------- |  |
-|  | (Spoken words will appear here in real-time...)                             |  |
+|  | Hello world, this is EchoScribe recording live speech...                    |  |
 |  |                                                                             |  |
 |  |                                                                             |  |
 |  +-----------------------------------------------------------------------------+  |
 |                                                                                   |
-|                     [ Copy Text ]  [ Download TXT ]  [ Save to DB ]                |
+|         [ Copy Text ]  [ Download TXT ]  [ Download DOC ]  [ Save Transcript ]     |
 |                                                                                   |
 +-----------------------------------------------------------------------------------+
 ```
 
-### 2. Transcript History Screen
-Enables users to manage, search, and download their archived speech transcriptions.
-
+### 2. Archive Panel
 ```text
 +-----------------------------------------------------------------------------------+
-|  [🎤 STT App]                Record            *History*            [User Profile] |
+|  [🎤 EchoScribe]             Record            *History*             [User Profile] |
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
 |                              --- Saved Transcripts ---                            |
 |                                                                                   |
-|  Search transcripts: [ Find a transcript...                                     ] |
+|  Search transcripts: [ alex_stone                                               ] |
 |                                                                                   |
 |  +-----------------------------------------------------------------------------+  |
 |  | Date        | Text Summary                         | Duration | Actions     |  |
 |  | ------------+--------------------------------------+----------+------------ |  |
-|  | May 21, 2026| "Meeting notes regarding marketing..."| 00:04:12 | [View] [Del]|  |
-|  | May 20, 2026| "Ideas for the new project layout..."| 00:01:45 | [View] [Del]|  |
-|  | May 18, 2026| "Speech recognition test recording..." | 00:00:30 | [View] [Del]|  |
+|  | May 28, 2026| "Meeting notes regarding marketing..."| 00:04:12 | [View] [Del]|  |
+|  | May 26, 2026| "Hello world, this is EchoScribe..." | 00:00:15 | [View] [Del]|  |
 |  +-----------------------------------------------------------------------------+  |
-|                                                                                   |
-|                                <<  [1]  2  3  >>                                  |
 |                                                                                   |
 +-----------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 🛠️ Stack & Technologies
+## 🛠️ Technology Stack
 
-*   **Frontend:** [Next.js](https://nextjs.org/) (React), Tailwind CSS, TypeScript, Axios
-*   **Backend:** [Flask](https://flask.palletsprojects.com/) (Python), Flask-CORS, Flask-SocketIO (for streaming), PyDub
-*   **Speech Recognition:** DeepInfra Speech-to-Text API, or Google Speech-to-Text API
-*   **Database:** Supabase (PostgreSQL)
-*   **Development Tools:** Git, Python Venv, Npm/Yarn
+*   **Frontend:** Next.js (App Router), React, TypeScript, Tailwind CSS
+*   **Backend:** Python 3.8+, Flask, Flask-CORS, PyDub (for audio processing)
+*   **Speech Recognition:** DeepInfra Whisper-large-v3 API (with automatic mock fallback support)
+*   **Database:** Local SQLite SQL Database (`transcripts.db`)
+*   **Auth:** JWT-based itsdangerous Timed Serialization sessions
 
 ---
 
-## 📂 Repository Structure
+## 🚀 Environment Variables Configuration
 
-```text
-├── frontend/             # Next.js Client App
-├── backend/              # Flask Server App & Venv
-├── .gitignore            # Git exclusion guidelines
-├── .env.example          # Project configuration template
-├── LICENSE               # MIT License File
-└── README.md             # Project roadmap and architecture overview (this file)
+Copy `.env.example` to create your own configuration files:
+
+### Backend Configuration (`backend/.env`):
+```ini
+FLASK_APP=app.py
+FLASK_ENV=development
+PORT=5000
+JWT_SECRET=your_custom_secure_secret_key
+DEEPINFRA_API_KEY=your_deepinfra_api_key_here
+```
+*(Note: If no `DEEPINFRA_API_KEY` is provided, the server automatically boots in offline mock fallback mode, allowing you to test database savings, user registrations, and audio playback fully without configuring APIs.)*
+
+### Frontend Configuration (`frontend/.env.local`):
+```ini
+NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
 ---
 
-## 📅 14-Day Development Roadmap
+## 💻 Full-Stack Local Execution
 
-*   **Day 1:** Project Scaffolding & Configuration setup [CURRENT STAGE]
-*   **Day 2:** Frontend UI skeleton (Tailwind CSS configuration and pages layout)
-*   **Day 3:** Microphone audio capturing using MediaRecorder (Blob assembly)
-*   **Day 4:** Backend Flask skeleton (accept multipart uploads endpoint)
-*   **Day 5:** Speech-to-Text provider integration proof-of-concept
-*   **Day 6:** E2E integration (frontend upload, backend processing, transcript render)
-*   **Day 7:** Robust server-side audio format conversion & validations using PyDub
-*   **Day 8:** WebSocket-based live audio chunk streaming & partial transcribing (Optional)
-*   **Day 9:** Supabase integration for transcripts archiving (Database & History screen)
-*   **Day 10:** User accounts and auth integration for private archives (Supabase Auth)
-*   **Day 11:** UI polishing and export features (Copy, Download .txt, Docx export)
-*   **Day 12:** Multi-browser QA and automated/manual tests (pytest & E2E)
-*   **Day 13:** Flask Deployment (Render/Heroku) & Frontend Deployment (Vercel)
-*   **Day 14:** Final documentation review, demos, and project sign-off
+### 1. Run the Flask Backend:
+Ensure you have Python 3.8+ and **FFmpeg** installed (required for audio transcoding).
+
+```bash
+# Navigate to backend folder
+cd backend
+
+# Activate Virtual Environment
+# Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+# macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the Flask API server
+python app.py
+```
+The backend server runs locally on **`http://localhost:5000`**.
+
+### 2. Run the Next.js Frontend:
+Ensure you have Node.js 18+ installed.
+
+```bash
+# Navigate to frontend folder
+cd frontend
+
+# Install Node dependencies
+npm install
+
+# Start the Next.js development server
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your web browser to access the EchoScribe portal!
